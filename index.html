@@ -3,82 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StarChat - All-in-One</title>
+    <title>StarTalk - Character Custom</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        .server-icon { @apply w-12 h-12 bg-[#313338] text-[#5865F2] rounded-[24px] flex items-center justify-center hover:bg-[#5865F2] hover:text-white transition-all cursor-pointer shadow-lg font-bold; }
-        .active-server { border-radius: 16px !important; background-color: #5865F2 !important; color: white !important; }
-        .channel-item { @apply flex items-center px-2 py-2 rounded cursor-pointer text-[#949BA4] hover:bg-[#35373C] hover:text-white transition-all text-sm mb-[2px] justify-between; }
-        .active-channel { @apply bg-[#4f46e5] text-white !important; font-weight: bold; }
-        #auth-overlay { @apply fixed inset-0 bg-black/90 flex items-center justify-center z-50; }
-        .master-badge { @apply bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[9px] px-1 rounded ml-1 font-bold animate-pulse; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: #1e1f22; border-radius: 10px; }
+        :root { --kakao-yellow: #FEE500; --kakao-bg: #BACEE0; }
+        .kakao-bubble-me { @apply bg-[#FEE500] text-black rounded-l-lg rounded-br-lg p-2 shadow-sm max-w-[70%] text-sm; }
+        .kakao-bubble-other { @apply bg-white text-black rounded-r-lg rounded-bl-lg p-2 shadow-sm max-w-[70%] text-sm; }
+        .avatar { @apply w-12 h-12 rounded-2xl border border-black/5 flex items-center justify-center text-2xl bg-gray-100 overflow-hidden; }
+        #profile-modal { @apply fixed inset-0 bg-black/60 flex items-center justify-center z-[60] hidden; }
+        .char-option { @apply w-16 h-16 flex items-center justify-center text-4xl cursor-pointer hover:bg-gray-100 rounded-xl transition-all border-2 border-transparent; }
+        .char-selected { @apply border-[#FEE500] bg-yellow-50; }
     </style>
 </head>
-<body class="bg-[#313338] text-[#DBDEE1] font-sans overflow-hidden">
+<body class="bg-white text-[#3C1E1E] h-screen overflow-hidden flex">
 
-<div id="auth-overlay">
-    <div class="bg-[#313338] p-8 rounded-xl shadow-2xl w-80 flex flex-col space-y-4 border border-[#1E1F22]">
-        <h2 class="text-3xl font-black text-[#5865F2] text-center italic tracking-tighter">STARCHAT</h2>
-        <input id="auth-id" type="text" placeholder="아이디" class="bg-[#1E1F22] p-3 rounded text-sm outline-none focus:ring-2 focus:ring-[#5865F2] text-white">
-        <input id="auth-pw" type="password" placeholder="비밀번호 (6자 이상)" class="bg-[#1E1F22] p-3 rounded text-sm outline-none focus:ring-2 focus:ring-[#5865F2] text-white">
-        <button id="btn-login" class="bg-[#5865F2] hover:bg-[#4752C4] py-3 rounded-lg font-bold transition-all">로그인</button>
-        <button id="btn-signup" class="text-xs text-gray-500 hover:text-white underline text-center">신규 가입</button>
+<div id="profile-modal">
+    <div class="bg-white p-6 rounded-3xl w-80 shadow-2xl">
+        <h3 class="text-lg font-bold mb-4 text-center">캐릭터 꾸미기</h3>
+        <div class="flex flex-wrap justify-center gap-2 mb-6" id="char-selector">
+            <div class="char-option" onclick="selectChar('🐶')">🐶</div>
+            <div class="char-option" onclick="selectChar('🐱')">🐱</div>
+            <div class="char-option" onclick="selectChar('🐻')">🐻</div>
+            <div class="char-option" onclick="selectChar('🐰')">🐰</div>
+            <div class="char-option" onclick="selectChar('🦊')">🦊</div>
+            <div class="char-option" onclick="selectChar('🐥')">🐥</div>
+            <div class="char-option" onclick="selectChar('🐸')">🐸</div>
+            <div class="char-option" onclick="selectChar('🤖')">🤖</div>
+        </div>
+        <button onclick="saveProfile()" class="w-full bg-[#FEE500] py-3 rounded-xl font-bold hover:brightness-95">저장하기</button>
+        <button onclick="closeProfile()" class="w-full py-2 mt-2 text-gray-400 text-sm">취소</button>
     </div>
 </div>
 
-<div class="flex h-screen w-full">
-    <nav class="w-[72px] bg-[#1E1F22] flex flex-col items-center py-3 space-y-2 shrink-0">
-        <div onclick="location.reload()" class="server-icon border-2 border-[#5865F2] text-xs">HOME</div>
-        <div class="w-8 h-[2px] bg-[#35363C] rounded-full my-1"></div>
-        <div id="server-list" class="flex flex-col space-y-2"></div>
-        <button id="join-code-btn" class="server-icon text-xl" title="코드로 입장">#</button>
-        <button id="add-server-btn" class="server-icon text-2xl">+</button>
-    </nav>
-
-    <aside class="w-64 bg-[#2B2D31] flex flex-col shrink-0 border-r border-[#1E1F22]">
-        <div class="h-12 px-4 flex items-center shadow-md font-bold text-white border-b border-[#1E1F22] justify-between">
-            <span id="active-server-name" class="truncate">서버를 선택하세요</span>
-            <button id="copy-code-btn" class="hidden text-[9px] bg-[#1E1F22] px-2 py-1 rounded hover:bg-gray-700">코드복사</button>
-        </div>
-        <div class="flex-1 overflow-y-auto p-4">
-            <div class="text-[11px] font-bold text-[#949BA4] uppercase mb-2 flex justify-between items-center">
-                <span>채널 및 음성</span>
-                <button id="add-channel-btn" class="hidden text-lg hover:text-white">+</button>
-            </div>
-            <div id="channel-list" class="mb-6"></div>
-            <div class="text-[11px] font-bold text-[#949BA4] uppercase mb-2">온라인 유저</div>
-            <div id="user-list" class="space-y-1"></div>
-        </div>
-        <div id="user-footer" class="p-3 bg-[#232428] border-t border-[#1E1F22] flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-                <div class="w-8 h-8 rounded-full bg-[#5865F2] flex items-center justify-center text-[10px] font-bold">U</div>
-                <span id="my-name" class="font-bold text-xs text-[#5865F2] truncate w-20"></span>
-            </div>
-            <button id="btn-logout" class="text-[10px] text-gray-500 hover:text-red-400 font-bold">로그아웃</button>
-        </div>
-    </aside>
-
-    <main class="flex-1 flex flex-col bg-[#313338]">
-        <header class="h-12 px-4 flex items-center shadow-sm border-b border-[#1E1F22] font-bold text-white justify-between">
-            <div><span class="text-[#5865F2] mr-2">#</span><span id="active-channel-name">접속 대기 중</span></div>
-            <div id="voice-status" class="text-[10px] text-gray-500 font-mono">MIC: OFF</div>
-        </header>
-        <div id="chat-box" class="flex-1 p-4 overflow-y-auto space-y-4"></div>
-        <form id="chat-form" class="p-4 shrink-0">
-            <input id="chat-input" type="text" placeholder="메시지를 입력하세요..." class="bg-[#383A40] w-full p-3 rounded-lg outline-none text-sm text-white" disabled autocomplete="off">
-        </form>
-    </main>
+<div id="auth-overlay" class="fixed inset-0 bg-[#FEE500] flex items-center justify-center z-50">
+    <div class="w-72 flex flex-col space-y-3">
+        <h1 class="text-5xl font-black text-center mb-8">StarTalk</h1>
+        <input id="auth-id" type="text" placeholder="아이디" class="p-3 rounded-md outline-none border border-gray-300">
+        <input id="auth-pw" type="password" placeholder="비밀번호" class="p-3 rounded-md outline-none border border-gray-300">
+        <button id="btn-login" class="bg-[#3C1E1E] text-white py-3 rounded-md font-bold">로그인</button>
+        <button id="btn-signup" class="text-xs text-[#3C1E1E] font-bold opacity-70 text-center">회원가입</button>
+    </div>
 </div>
+
+<nav class="w-16 bg-[#EBEBEB] flex flex-col items-center py-4 shrink-0 border-r border-gray-300">
+    <div class="py-4 cursor-pointer text-2xl opacity-100">👤</div>
+    <div class="mt-auto pb-4 cursor-pointer opacity-30 hover:opacity-100" id="btn-logout">🚪</div>
+</nav>
+
+<aside class="w-72 bg-white flex flex-col shrink-0 border-r border-gray-200">
+    <div class="p-5 flex justify-between items-center">
+        <h2 class="text-xl font-bold">친구</h2>
+        <button onclick="addFriendPrompt()" class="text-xl">➕</button>
+    </div>
+    <div onclick="openProfile()" class="px-5 py-3 flex items-center border-b mb-2 cursor-pointer hover:bg-gray-50 transition-all">
+        <div class="avatar mr-3" id="my-avatar">👤</div>
+        <div class="flex flex-col">
+            <span class="font-bold text-sm" id="display-my-id">로드 중...</span>
+            <span class="text-[10px] text-gray-400">내 프로필 편집하기</span>
+        </div>
+    </div>
+    <div id="friend-list" class="flex-1 overflow-y-auto"></div>
+</aside>
+
+<main class="flex-1 flex flex-col bg-[#BACEE0]">
+    <header class="h-14 px-4 flex items-center shrink-0 border-b border-black/5">
+        <span id="active-chat-name" class="font-bold text-sm opacity-70">대상을 선택하세요</span>
+    </header>
+    <div id="chat-box" class="flex-1 p-4 overflow-y-auto flex flex-col space-y-4"></div>
+    <form id="chat-form" class="bg-white p-2 flex items-end space-x-2 border-t">
+        <textarea id="chat-input" rows="2" placeholder="메시지 입력..." class="flex-1 outline-none text-sm resize-none p-2" disabled></textarea>
+        <button type="submit" class="bg-[#FEE500] px-4 py-2 rounded text-xs font-bold">전송</button>
+    </form>
+</main>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, push, set, onValue, remove, serverTimestamp, onDisconnect, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getDatabase, ref, set, get, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
     import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-
-    const MASTER_ID = "admin"; // <--- 본인 아이디로 변경하세요
 
     const firebaseConfig = {
         apiKey: "AIzaSyDYQUyL1NK8FLLyg8rIhi-R2oUoNi3W_Ec",
@@ -94,177 +95,125 @@
     const db = getDatabase(app);
     const auth = getAuth(app);
 
-    let activeSid = null, activeCid = null, isAdmin = false;
-    let myPeer = null, myStream = null;
+    let myId = "", tempChar = "🐶";
+    let activeChatKey = null;
 
-    // 인증 및 세션 체크
-    onAuthStateChanged(auth, async (user) => {
+    onAuthStateChanged(auth, (user) => {
         if (user) {
-            const uid = user.uid;
-            const myId = user.email.split('@')[0];
-            const sessionRef = ref(db, `sessions/${uid}`);
-            const newSessionId = Date.now().toString();
-            
-            localStorage.setItem('sc_session', newSessionId);
-            await set(sessionRef, { sessionId: newSessionId });
-            
-            onValue(sessionRef, (snap) => {
-                if (snap.val() && snap.val().sessionId !== localStorage.getItem('sc_session')) {
-                    alert("다른 브라우저에서 로그인하여 접속이 종료됩니다.");
-                    signOut(auth);
-                }
-            });
-
+            myId = user.email.split('@')[0];
             document.getElementById('auth-overlay').style.display = 'none';
-            document.getElementById('my-name').innerText = myId;
-            loadServerList();
-            selectServer('official', '스타쳇 본부', 'admin');
+            document.getElementById('display-my-id').innerText = myId;
+            syncMyProfile();
+            loadFriends();
         } else {
             document.getElementById('auth-overlay').style.display = 'flex';
         }
     });
 
-    // 회원가입/로그인 로직
+    // [프로필 설정 기능]
+    window.openProfile = () => document.getElementById('profile-modal').style.display = 'flex';
+    window.closeProfile = () => document.getElementById('profile-modal').style.display = 'none';
+    window.selectChar = (char) => {
+        tempChar = char;
+        document.querySelectorAll('.char-option').forEach(el => el.classList.remove('char-selected'));
+        event.currentTarget.classList.add('char-selected');
+    };
+    window.saveProfile = async () => {
+        await set(ref(db, `users/${myId}/char`), tempChar);
+        closeProfile();
+    };
+
+    function syncMyProfile() {
+        onValue(ref(db, `users/${myId}/char`), (snap) => {
+            const char = snap.val() || "👤";
+            document.getElementById('my-avatar').innerText = char;
+        });
+    }
+
+    // [친구 목록 & 캐릭터 표시]
+    function loadFriends() {
+        onValue(ref(db, `friends/${myId}`), (snap) => {
+            const list = document.getElementById('friend-list');
+            list.innerHTML = '';
+            snap.forEach(child => {
+                const friendId = child.key;
+                get(ref(db, `users/${friendId}/char`)).then(s => {
+                    const char = s.val() || "👤";
+                    list.innerHTML += `
+                        <div onclick="startChat('${friendId}', '${char}')" class="px-5 py-3 flex items-center hover:bg-gray-50 cursor-pointer">
+                            <div class="avatar mr-3 text-lg">${char}</div>
+                            <div class="text-sm font-medium">${friendId}</div>
+                        </div>`;
+                });
+            });
+        });
+    }
+
+    // [채팅 시작]
+    window.startChat = (friendId, char) => {
+        const ids = [myId, friendId].sort();
+        activeChatKey = `${ids[0]}_${ids[1]}`;
+        document.getElementById('active-chat-name').innerText = `${char} ${friendId}님과 대화 중`;
+        document.getElementById('chat-input').disabled = false;
+        loadMessages(activeChatKey, friendId, char);
+    };
+
+    function loadMessages(chatKey, friendId, friendChar) {
+        onValue(ref(db, `chats/${chatKey}`), (snap) => {
+            const box = document.getElementById('chat-box');
+            box.innerHTML = '';
+            snap.forEach(m => {
+                const d = m.val();
+                const isMe = d.sender === myId;
+                box.innerHTML += `
+                    <div class="flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start w-full gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center text-sm">
+                            ${isMe ? '' : friendChar}
+                        </div>
+                        <div class="${isMe ? 'kakao-bubble-me' : 'kakao-bubble-other'}">
+                            ${d.text}
+                        </div>
+                    </div>`;
+            });
+            box.scrollTop = box.scrollHeight;
+        });
+    }
+
+    // [기본 채팅 전송 및 가입 로직]
+    document.getElementById('chat-form').onsubmit = (e) => {
+        e.preventDefault();
+        const input = document.getElementById('chat-input');
+        if (!input.value.trim() || !activeChatKey) return;
+        push(ref(db, `chats/${activeChatKey}`), { text: input.value, sender: myId, timestamp: serverTimestamp() });
+        input.value = '';
+    };
+
     document.getElementById('btn-signup').onclick = async () => {
         const id = document.getElementById('auth-id').value.trim();
         const pw = document.getElementById('auth-pw').value;
-        if(pw.length < 6) return alert("비번은 6자 이상!");
         try {
             await createUserWithEmailAndPassword(auth, id + "@starchat.com", pw);
+            await set(ref(db, `users/${id}`), { uid: auth.currentUser.uid, char: "🐶" });
             alert("가입 성공! 로그인 하세요.");
-        } catch(e) { alert("중복된 아이디거나 가입할 수 없습니다."); }
+        } catch(e) { alert("가입 실패!"); }
     };
 
     document.getElementById('btn-login').onclick = async () => {
         const id = document.getElementById('auth-id').value.trim();
         const pw = document.getElementById('auth-pw').value;
-        try { await signInWithEmailAndPassword(auth, id + "@starchat.com", pw); } catch(e) { alert("아이디/비번을 확인하세요."); }
+        try { await signInWithEmailAndPassword(auth, id + "@starchat.com", pw); } catch(e) { alert("로그인 실패"); }
+    };
+
+    window.addFriendPrompt = async () => {
+        const tid = prompt("친구 아이디:");
+        if (!tid || tid === myId) return;
+        if ((await get(ref(db, `users/${tid}`))).exists()) {
+            await set(ref(db, `friends/${myId}/${tid}`), true);
+            alert("추가 완료!");
+        } else alert("없는 아이디입니다.");
     };
 
     document.getElementById('btn-logout').onclick = () => signOut(auth);
-
-    // 마이크(음성) 기능
-    window.joinVoice = async (sid, cid) => {
-        if (myStream) return alert("이미 마이크가 연결되어 있습니다.");
-        try {
-            myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            myPeer = new Peer(auth.currentUser.uid + "_" + cid);
-            
-            myPeer.on('open', (id) => {
-                const voiceRef = ref(db, `voice/${sid}/${cid}/${auth.currentUser.uid}`);
-                set(voiceRef, { id: id, name: auth.currentUser.email.split('@')[0] });
-                onDisconnect(voiceRef).remove();
-                document.getElementById('voice-status').innerText = "MIC: ON";
-                document.getElementById('voice-status').className = "text-[10px] text-green-400 font-bold animate-pulse";
-            });
-
-            myPeer.on('call', (call) => {
-                call.answer(myStream);
-                call.on('stream', (userStream) => { 
-                    const audio = new Audio(); audio.srcObject = userStream; audio.play(); 
-                });
-            });
-
-            onValue(ref(db, `voice/${sid}/${cid}`), (snap) => {
-                snap.forEach((user) => {
-                    if (user.key !== auth.currentUser.uid) {
-                        const call = myPeer.call(user.val().id, myStream);
-                        call.on('stream', (s) => { const a = new Audio(); a.srcObject = s; a.play(); });
-                    }
-                });
-            });
-            alert("음성 채널에 연결되었습니다.");
-        } catch (e) { alert("마이크 권한을 승인해주세요."); }
-    };
-
-    // 서버 선택 및 로드
-    window.selectServer = (sid, name, ownerId) => {
-        activeSid = sid;
-        const myId = auth.currentUser?.email.split('@')[0];
-        isAdmin = (myId === MASTER_ID || ownerId === auth.currentUser?.uid || ownerId === 'admin');
-        
-        document.getElementById('active-server-name').innerText = name;
-        document.getElementById('copy-code-btn').style.display = 'block';
-        document.getElementById('add-channel-btn').style.display = isAdmin ? 'block' : 'none';
-
-        onValue(ref(db, `channels/${sid}`), (snap) => {
-            const list = document.getElementById('channel-list'); list.innerHTML = '';
-            if(!snap.exists() && isAdmin) push(ref(db, `channels/${sid}`), { name: "기본채널" });
-            snap.forEach(c => {
-                const cid = c.key;
-                list.innerHTML += `<div class="channel-item ${activeCid === cid ? 'active-channel' : ''}" onclick="window.loadChat('${sid}','${cid}','${c.val().name}')">
-                    <span># ${c.val().name}</span>
-                    <button onclick="event.stopPropagation(); window.joinVoice('${sid}','${cid}')" class="hover:text-green-400">🎙️</button>
-                </div>`;
-            });
-        });
-
-        onValue(ref(db, `sessions`), (snap) => {
-            const ulist = document.getElementById('user-list'); ulist.innerHTML = '';
-            snap.forEach(u => {
-                ulist.innerHTML += `<div class="flex items-center text-xs p-1 text-gray-400">● 접속 중</div>`;
-            });
-        });
-    };
-
-    window.loadChat = (sid, cid, name) => {
-        activeCid = cid;
-        document.getElementById('active-channel-name').innerText = name;
-        document.getElementById('chat-input').disabled = false;
-        
-        const chatQuery = query(ref(db, `messages/${sid}/${cid}`), orderByChild('timestamp'));
-        onValue(chatQuery, (snap) => {
-            const box = document.getElementById('chat-box'); box.innerHTML = '';
-            snap.forEach(m => {
-                const d = m.val();
-                const isMaster = d.id === MASTER_ID;
-                box.innerHTML += `<div class="flex flex-col">
-                    <div class="flex items-center"><span class="font-bold text-xs ${isMaster?'text-yellow-400':'text-[#5865F2]'}">${d.id}</span>${isMaster?'<span class="master-badge">MASTER</span>':''}</div>
-                    <div class="text-sm text-[#DBDEE1] mt-0.5">${d.text}</div>
-                </div>`;
-            });
-            box.scrollTop = box.scrollHeight;
-        });
-    };
-
-    document.getElementById('chat-form').onsubmit = (e) => {
-        e.preventDefault();
-        const input = document.getElementById('chat-input'); if(!input.value || !activeCid) return;
-        push(ref(db, `messages/${activeSid}/${activeCid}`), {
-            text: input.value, id: auth.currentUser.email.split('@')[0], timestamp: serverTimestamp()
-        });
-        input.value = '';
-    };
-
-    document.getElementById('join-code-btn').onclick = () => {
-        const code = prompt("입장 코드를 입력하세요:");
-        if(code) selectServer(code, "코드 입장 서버", "");
-    };
-
-    document.getElementById('copy-code-btn').onclick = () => {
-        navigator.clipboard.writeText(activeSid);
-        alert("서버 코드가 복사되었습니다! 친구에게 공유하세요.");
-    };
-
-    document.getElementById('add-server-btn').onclick = () => {
-        const n = prompt("새 서버 이름:");
-        if(n) push(ref(db, 'server_list'), { name: n, initial: n[0], owner: auth.currentUser.uid });
-    };
-
-    document.getElementById('add-channel-btn').onclick = () => {
-        const n = prompt("새 채널 이름:");
-        if(n) push(ref(db, `channels/${activeSid}`), { name: n });
-    };
-
-    function loadServerList() {
-        onValue(ref(db, 'server_list'), (snap) => {
-            const list = document.getElementById('server-list'); list.innerHTML = '';
-            snap.forEach(s => {
-                const d = s.val();
-                list.innerHTML += `<div onclick="selectServer('${s.key}','${d.name}','${d.owner}')" class="server-icon mb-2">${d.initial}</div>`;
-            });
-        });
-    }
 </script>
 </body>
 </html>
