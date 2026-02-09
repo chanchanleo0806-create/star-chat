@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StarChat - Voice & Code Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        .server-icon { @apply w-12 h-12 bg-[#313338] text-[#5865F2] rounded-[24px] flex items-center justify-center hover:bg-[#5865F2] hover:text-white transition-all cursor-pointer shadow-lg font-bold; }
+        .active-server { border-radius: 16px !important; background-color: #5865F2 !important; color: white !important; }
+        .channel-item { @apply flex items-center px-2 py-1.5 rounded cursor-pointer text-[#949BA4] hover:bg-[#35373C] hover:text-white transition-all text-sm mb-[2px] justify-between; }
+        .active-channel { @apply bg-[#4f46e5] text-white !important; font-weight: bold; }
+        #auth-overlay { @apply fixed inset-0 bg-black/90 flex items-center justify-center z-50; }
+        .master-badge { @apply bg-gradient-to-r from-blue-400 to-indigo-600 text-white text-[9px] px-1 rounded ml-1 font-bold animate-pulse; }
+        .voice-active { @apply text-green-400 animate-bounce; }
+    </style>
+</head>
+<body class="bg-[#313338] text-[#DBDEE1] font-sans overflow-hidden">
+
+<div id="auth-overlay">
+    <div class="bg-[#313338] p-8 rounded-xl shadow-2xl w-80 flex flex-col space-y-4 border border-[#1E1F22]">
+        <h2 class="text-3xl font-black text-[#5865F2] text-center">STARCHAT</h2>
+        <input id="auth-id" type="text" placeholder="아이디" class="bg-[#1E1F22] p-3 rounded text-sm outline-none focus:ring-2 focus:ring-[#5865F2]">
+        <input id="auth-pw" type="password" placeholder="비밀번호" class="bg-[#1E1F22] p-3 rounded text-sm outline-none focus:ring-2 focus:ring-[#5865F2]">
+        <button id="btn-login" class="bg-[#5865F2] hover:bg-[#4752C4] py-3 rounded-lg font-bold transition-all">스타쳇 로그인</button>
+        <button id="btn-signup" class="text-xs text-gray-500 hover:text-white underline text-center">아이디 만들기</button>
+    </div>
+</div>
+
+<div class="flex h-screen w-full">
+    <nav class="w-[72px] bg-[#1E1F22] flex flex-col items-center py-3 space-y-2 shrink-0">
+        <div class="server-icon border-2 border-[#5865F2]">SC</div>
+        <div id="server-list" class="flex flex-col space-y-2"></div>
+        <button id="join-code-btn" class="server-icon text-xl" title="코드로 입장">#</button>
+        <button id="add-server-btn" class="server-icon text-2xl">+</button>
+    </nav>
+
+    <aside class="w-64 bg-[#2B2D31] flex flex-col shrink-0 border-r border-[#1E1F22]">
+        <div class="h-12 px-4 flex items-center shadow-md font-bold text-white border-b border-[#1E1F22] justify-between">
+            <span id="active-server-name">스타쳇</span>
+            <button id="copy-code-btn" class="text-[9px] bg-[#1E1F22] px-2 py-1 rounded hover:bg-gray-700">코드복사</button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4">
+            <div class="text-[11px] font-bold text-[#949BA4] uppercase mb-2 flex justify-between">
+                <span>채널 및 음성</span>
+                <button id="add-channel-btn" class="hidden">+</button>
+            </div>
+            <div id="channel-list" class="mb-6"></div>
+        </div>
+        <div id="user-footer" class="p-3 bg-[#232428] border-t border-[#1E1F22] flex items-center justify-between">
+            <span id="my-name" class="font-bold text-xs text-[#5865F2]"></span>
+            <button id="btn-logout" class="text-[10px] text-gray-500 hover:text-red-400">로그아웃</button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col bg-[#313338]">
+        <header class="h-12 px-4 flex items-center shadow-sm border-b border-[#1E1F22] font-bold text-white justify-between">
+            <div><span class="text-[#5865F2] mr-2">#</span><span id="active-channel-name">채널 선택</span></div>
+            <div id="voice-status" class="text-[10px] text-gray-500">마이크 꺼짐</div>
+        </header>
+        <div id="chat-box" class="flex-1 p-4 overflow-y-auto space-y-4"></div>
+        <form id="chat-form" class="p-4 shrink-0">
+            <div class="bg-[#383A40] rounded-lg p-3 flex">
+                <input id="chat-input" type="text" placeholder="메시지 입력..." class="bg-transparent flex-1 outline-none text-sm text-[#DBDEE1]" disabled>
+            </div>
+        </form>
+    </main>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, push, set, onValue, remove, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+    const MASTER_ID = "admin"; // 본인 아이디로 변경
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAcBQ_Pyt4kdExDLGyNZJwWGbCdGDzVIjQ",
+        authDomain: "starchet-e9630.firebaseapp.com",
+        databaseURL: "https://starchet-e9630-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "starchet-e9630",
+        storageBucket: "starchet-e9630.firebasestorage.app",
+        messagingSenderId: "532571302538",
+        appId: "1:532571302538:web:ee6b941e1a70bcaa02db73"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    let activeSid = null, activeCid = null, isAdmin = false;
+    let myPeer = null, myStream = null;
+
+    // [시스템] 로그인/가입
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            document.getElementById('auth-overlay').style.display = 'none';
+            document.getElementById('my-name').innerText = user.email.split('@')[0];
+            loadServerList();
+        } else {
+            document.getElementById('auth-overlay').style.display = 'flex';
+        }
+    });
+
+    document.getElementById('btn-signup').onclick = async () => {
+        const id = document.getElementById('auth-id').value;
+        const pw = document.getElementById('auth-pw').value;
+        try { await createUserWithEmailAndPassword(auth, id + "@starchat.com", pw); alert("가입성공"); } catch(e) { alert("가입실패"); }
+    };
+
+    document.getElementById('btn-login').onclick = async () => {
+        const id = document.getElementById('auth-id').value;
+        const pw = document.getElementById('auth-pw').value;
+        try { await signInWithEmailAndPassword(auth, id + "@starchat.com", pw); } catch(e) { alert("로그인 실패"); }
+    };
+
+    document.getElementById('btn-logout').onclick = () => signOut(auth);
+
+    // [음성채팅 기능] WebRTC PeerJS
+    async function joinVoice(sid, cid) {
+        if (myStream) return; // 이미 연결됨
+        try {
+            myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            myPeer = new Peer(auth.currentUser.uid + "_" + cid);
+            
+            myPeer.on('open', () => {
+                set(ref(db, `voice/${sid}/${cid}/${auth.currentUser.uid}`), { id: myPeer.id, name: auth.currentUser.email.split('@')[0] });
+                document.getElementById('voice-status').innerText = "🎙️ 마이크 켜짐";
+                document.getElementById('voice-status').classList.add('text-green-400');
+            });
+
+            myPeer.on('call', (call) => {
+                call.answer(myStream);
+                const audio = new Audio();
+                call.on('stream', (stream) => { audio.srcObject = stream; audio.play(); });
+            });
+
+            onValue(ref(db, `voice/${sid}/${cid}`), (snap) => {
+                snap.forEach((user) => {
+                    if (user.key !== auth.currentUser.uid) {
+                        const call = myPeer.call(user.val().id, myStream);
+                        const audio = new Audio();
+                        call.on('stream', (stream) => { audio.srcObject = stream; audio.play(); });
+                    }
+                });
+            });
+        } catch (e) { alert("마이크 권한이 필요합니다."); }
+    }
+
+    // [입장 코드 기능]
+    document.getElementById('join-code-btn').onclick = () => {
+        const code = prompt("입장 코드를 입력하세요:");
+        if (code) selectServer(code, "코드 입장 서버", "");
+    };
+
+    document.getElementById('copy-code-btn').onclick = () => {
+        navigator.clipboard.writeText(activeSid);
+        alert("입장 코드가 복사되었습니다! 친구에게 공유하세요.\n코드: " + activeSid);
+    };
+
+    window.selectServer = (sid, name, ownerId) => {
+        activeSid = sid;
+        const myId = auth.currentUser?.email.split('@')[0];
+        isAdmin = (myId === MASTER_ID || ownerId === auth.currentUser?.uid || ownerId === 'admin');
+        document.getElementById('active-server-name').innerText = name;
+        document.getElementById('add-channel-btn').style.display = isAdmin ? 'block' : 'none';
+
+        onValue(ref(db, `channels/${sid}`), (snap) => {
+            const list = document.getElementById('channel-list'); list.innerHTML = '';
+            if(!snap.exists() && isAdmin) push(ref(db, `channels/${sid}`), { name: "기본채널" });
+            snap.forEach(c => {
+                const cid = c.key;
+                const el = document.createElement('div');
+                el.className = `channel-item ${activeCid === cid ? 'active-channel' : ''}`;
+                el.innerHTML = `<span># ${c.val().name}</span> <button onclick="event.stopPropagation(); window.voice('${sid}','${cid}')" class="hover:text-white">🎙️</button>`;
+                el.onclick = () => { activeCid = cid; loadMessages(sid, cid); };
+                list.appendChild(el);
+            });
+        });
+    };
+    
+    window.voice = joinVoice;
+
+    function loadMessages(sid, cid) {
+        document.getElementById('chat-input').disabled = false;
+        onValue(ref(db, `messages/${sid}/${cid}`), (snap) => {
+            const box = document.getElementById('chat-box'); box.innerHTML = '';
+            snap.forEach(m => {
+                const d = m.val();
+                box.innerHTML += `<div class="p-1"><span class="font-bold text-xs ${d.id===MASTER_ID?'text-yellow-400':'text-blue-300'}">${d.id}</span>: <span class="text-sm">${d.text}</span></div>`;
+            });
+            box.scrollTop = box.scrollHeight;
+        });
+    }
+
+    document.getElementById('chat-form').onsubmit = (e) => {
+        e.preventDefault();
+        const input = document.getElementById('chat-input'); if(!input.value) return;
+        push(ref(db, `messages/${activeSid}/${activeCid}`), { text: input.value, id: auth.currentUser.email.split('@')[0], timestamp: serverTimestamp() });
+        input.value = '';
+    };
+
+    function loadServerList() {
+        onValue(ref(db, 'server_list'), (snap) => {
+            const list = document.getElementById('server-list'); list.innerHTML = '';
+            snap.forEach(s => { list.innerHTML += `<div onclick="selectServer('${s.key}','${s.val().name}','${s.val().owner}')" class="server-icon mb-2">${s.val().initial}</div>`; });
+        });
+    }
+
+    document.getElementById('add-server-btn').onclick = () => {
+        const n = prompt("서버 이름:"); if(n) push(ref(db, 'server_list'), { name: n, initial: n[0], owner: auth.currentUser.uid });
+    };
+
+    document.getElementById('add-channel-btn').onclick = () => {
+        const n = prompt("채널 이름:"); if(n) push(ref(db, `channels/${activeSid}`), { name: n });
+    };
+</script>
+</body>
+</html>
